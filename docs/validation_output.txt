@@ -1,0 +1,75 @@
+
+========================================================================
+1. UNBALANCED THREE-PHASE LV POWER FLOW (backward-forward sweep)
+========================================================================
+LV feeder: 33 nodes, 4 laterals x 8 poles, 430 connections, phase split a/b/c = [191, 127, 112]
+  light    60 kW: Vdt 0.9937->0.9994  Vmin 0.9726->0.9785  violations 0->0  loss 0.5 kW  imbalance 1.7%  iters 4
+  evening 220 kW: Vdt 0.9758->0.9820  Vmin 0.8997->0.9068  violations 150->130  loss 7.8 kW  imbalance 5.9%  iters 6
+  heavy   330 kW: Vdt 0.9623->0.9690  Vmin 0.8313->0.8397  violations 322->283  loss 19.1 kW  imbalance 10.6%  iters 8
+  linearised sensitivities used as MPC constraints:
+     v_min_pu                   +0.831337
+     dv_per_kw_curtailed        +0.000605
+     dv_per_kw_injected         +0.000069
+     losses_kw                  +19.072218
+  => curtailment is 8.8x more effective per kW than battery injection for LV voltage support
+
+========================================================================
+2. ETP THERMOSTATIC LOADS — COLD LOAD PICKUP AS AN EMERGENT RESULT
+========================================================================
+  settled at 19:00: diversity 0.618, demand 397.8 kW
+    after 1 h held off: still curtailable  427.8 kW, mean T 28.5 C
+    after 2 h held off: still curtailable  548.6 kW, mean T 29.3 C
+    after 3 h held off: still curtailable  558.8 kW, mean T 29.9 C
+  on restoration 560.1 kW vs settled 397.8 kW => cold load pickup x1.41  (NOT hard-coded)
+  comfort: {'mean_excursion_degh': 2.826, 'p95_excursion_degh': 5.177, 'share_ever_beyond_limit': 0.938}
+
+========================================================================
+3. SCENARIO GENERATION + KANTOROVICH REDUCTION
+========================================================================
+  keep  2 of 160 -> Wasserstein-1 gap  490.11  (monotone decreasing = correct)
+  keep  4 of 160 -> Wasserstein-1 gap  429.71  (monotone decreasing = correct)
+  keep  6 of 160 -> Wasserstein-1 gap  398.55  (monotone decreasing = correct)
+  keep 10 of 160 -> Wasserstein-1 gap  365.36  (monotone decreasing = correct)
+
+========================================================================
+4. TWO-STAGE STOCHASTIC MILP (binary relays, CVaR, OWA, voltage)
+========================================================================
+  DPP-compliant: True   scalar variables: 887
+  solve time: first 246 ms, median thereafter 20 ms
+  fairness (OWA) cap sweep — soft, so never infeasible:
+    cap  40.0 ->  5 relays,   63.3 kW, OWA violation   0.00, E[UC] 0.00 kWh
+    cap  18.0 ->  7 relays,   68.1 kW, OWA violation   0.00, E[UC] 0.00 kWh
+    cap   9.0 ->  9 relays,   63.1 kW, OWA violation   5.56, E[UC] 0.00 kWh
+    cap   3.0 ->  9 relays,   63.1 kW, OWA violation  11.56, E[UC] 0.00 kWh
+  voltage constraint sweep:
+    V0=0.960 ->  5 relays,   63.3 kW, V_after 1.0066, residual 0.00000 pu
+    V0=0.930 ->  5 relays,   63.3 kW, V_after 0.9766, residual 0.00000 pu
+    V0=0.910 ->  5 relays,   63.3 kW, V_after 0.9566, residual 0.00000 pu
+    V0=0.890 ->  8 relays,   73.0 kW, V_after 0.9419, residual 0.00000 pu
+    V0=0.870 -> 12 relays,  100.2 kW, V_after 0.9391, residual 0.00086 pu
+
+========================================================================
+5. RAINFLOW COUNTING + Xu et al. (2018) DEGRADATION
+========================================================================
+  ASTM E1049 turning-point test: [(np.float64(1.0), np.float64(0.5), 1.0), (np.float64(3.0), np.float64(0.5), 1.0), (np.float64(3.0), np.float64(-0.5), 0.5), (np.float64(2.0), np.float64(0.0), 0.5), (np.float64(1.0), np.float64(-0.5), 0.5)]
+  deep daily cycling: EFC   291.7  meanDoD 0.798  fade/yr 3.60%  life 5.6 yr  cycle share 45.4%
+  shallow frequent  : EFC   174.7  meanDoD 0.120  fade/yr 2.90%  life 6.9 yr  cycle share 28.4%
+  marginal degradation cost, INR per kWh of throughput:
+    DoD 0.05 -> Rs 1.588/kWh
+    DoD 0.20 -> Rs 1.052/kWh
+    DoD 0.50 -> Rs 1.068/kWh
+    DoD 0.90 -> Rs 1.812/kWh
+
+========================================================================
+6. CONFORMALISED QUANTILE REGRESSION
+========================================================================
+  calibration: {'nominal_coverage': 0.8, 'raw_coverage': 0.4945, 'calibrated_coverage': 0.801, 'adjustment_kw': 8.954, 'raw_mean_width_kw': 18.03, 'calibrated_mean_width_kw': 35.94, 'n_calibration': 2000}
+  reliability diagram (nominal vs empirical coverage):
+     {'alpha': 0.05, 'nominal': 0.95, 'raw': 0.481, 'conformal': 0.96}
+     {'alpha': 0.1, 'nominal': 0.9, 'raw': 0.481, 'conformal': 0.916}
+     {'alpha': 0.2, 'nominal': 0.8, 'raw': 0.481, 'conformal': 0.816}
+     {'alpha': 0.3, 'nominal': 0.7, 'raw': 0.481, 'conformal': 0.713}
+     {'alpha': 0.4, 'nominal': 0.6, 'raw': 0.481, 'conformal': 0.597}
+
+All advanced modules validated.
+
